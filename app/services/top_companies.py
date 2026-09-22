@@ -311,7 +311,7 @@ def build_direct_job_url(company_name: str, role_title: str, fallback_url: Optio
 
 def get_top_companies_directory() -> List[Dict]:
     """Returns the full directory of top tech companies."""
-    return 
+    return TOP_200_COMPANIES
     
 # ====================================================================
 # 4. Multi-Category Company Classification Engine (6 Industry Sectors)

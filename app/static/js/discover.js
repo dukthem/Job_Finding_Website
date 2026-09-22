@@ -1,37 +1,19 @@
 /**
  * CareerPulse - Discover Jobs & ATS Matcher Frontend Engine
- * Handles live job searches, resume file uploads, ATS scoring, and tracking.
  */
 
-// Global State
 let currentResumeFile = null;
 let currentResumeText = "";
-let currentPage = 1;
-const pageSize = 20;
 
-// Category Badge Color Map
-const categoryStyles = {
-    "Big Tech": "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
-    "Product SaaS & AI": "bg-purple-500/10 text-purple-400 border-purple-500/20",
-    "Fintech": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    "European Tech": "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
-    "Indian Unicorns": "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    "IT Services": "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    "General Tech": "bg-slate-500/10 text-slate-400 border-slate-500/20"
-};
-
-// DOM Elements
+// DOM Initialization
 document.addEventListener("DOMContentLoaded", () => {
     initDropzone();
     initFilterForm();
     initTopCompaniesModal();
-    // Initial fetch on page load
     searchJobs();
 });
 
-// ==========================================
-// 1. DRAG-AND-DROP RESUME SCANNER
-// ==========================================
+// 1. DRAG & DROP RESUME SCANNER
 function initDropzone() {
     const dropzone = document.getElementById("dropzone");
     const fileInput = document.getElementById("resumeFileInput");
@@ -40,40 +22,32 @@ function initDropzone() {
 
     if (!dropzone || !fileInput) return;
 
-    // Click to select file
     dropzone.addEventListener("click", (e) => {
         if (e.target !== clearBtn) fileInput.click();
     });
 
-    // File selected via picker
     fileInput.addEventListener("change", (e) => {
-        if (e.target.files.length > 0) {
-            handleFileUpload(e.target.files[0]);
-        }
+        if (e.target.files.length > 0) handleFileUpload(e.target.files[0]);
     });
 
-    // Drag-and-drop events
-    ["dragenter", "dragover"].forEach(event => {
-        dropzone.addEventListener(event, (e) => {
+    ["dragenter", "dragover"].forEach(evt => {
+        dropzone.addEventListener(evt, (e) => {
             e.preventDefault();
             dropzone.classList.add("border-indigo-500", "bg-indigo-950/30");
         });
     });
 
-    ["dragleave", "drop"].forEach(event => {
-        dropzone.addEventListener(event, (e) => {
+    ["dragleave", "drop"].forEach(evt => {
+        dropzone.addEventListener(evt, (e) => {
             e.preventDefault();
             dropzone.classList.remove("border-indigo-500", "bg-indigo-950/30");
         });
     });
 
     dropzone.addEventListener("drop", (e) => {
-        if (e.dataTransfer.files.length > 0) {
-            handleFileUpload(e.dataTransfer.files[0]);
-        }
+        if (e.dataTransfer.files.length > 0) handleFileUpload(e.dataTransfer.files[0]);
     });
 
-    // Clear resume button
     clearBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         currentResumeFile = null;
@@ -88,41 +62,27 @@ function initDropzone() {
 }
 
 function handleFileUpload(file) {
-    const validExtensions = [".pdf", ".docx", ".doc"];
-    const fileExt = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
-
-    if (!validExtensions.includes(fileExt)) {
-        alert("Please upload a PDF or DOCX file.");
-        return;
-    }
-
     currentResumeFile = file;
     document.getElementById("dropzoneText").innerHTML = `
         <span class="text-indigo-400 font-bold">${escapeHtml(file.name)}</span>
         <div class="text-[10px] text-emerald-400 mt-0.5"><i class="fa-solid fa-check"></i> Loaded & Ready to Scan</div>
     `;
     document.getElementById("clearResumeBtn").classList.remove("hidden");
-
-    // Automatically trigger search with this file
     searchJobs();
 }
 
-// ==========================================
 // 2. SEARCH & FILTERING ENGINE
-// ==========================================
 function initFilterForm() {
     const form = document.getElementById("discoverFilterForm");
     const resetBtn = document.getElementById("resetFiltersBtn");
 
     form.addEventListener("submit", (e) => {
         e.preventDefault();
-        currentPage = 1;
         searchJobs();
     });
 
     resetBtn.addEventListener("click", () => {
         form.reset();
-        currentPage = 1;
         searchJobs();
     });
 }
@@ -136,39 +96,30 @@ async function searchJobs() {
     loadingIndicator.classList.remove("hidden");
     loadingIndicator.classList.add("flex");
 
-    const keyword = document.getElementById("keywordInput").value.trim() || null;
-    const category = document.getElementById("categorySelect").value || null;
-    const location = document.getElementById("locationInput").value.trim() || null;
-    const minSalary = document.getElementById("minSalaryInput").value ? parseFloat(document.getElementById("minSalaryInput").value) : null;
+    const query = document.getElementById("keywordInput").value.trim();
+    const category = document.getElementById("categorySelect").value || "all";
+    const region = document.getElementById("locationInput").value.trim() || "all";
 
     try {
         let response;
 
         if (currentResumeFile) {
-            // MULTIPART FORM DATA for file upload
             const formData = new FormData();
             formData.append("file", currentResumeFile);
-            if (keyword) formData.append("keyword", keyword);
+            if (query) formData.append("query", query);
             if (category) formData.append("category", category);
-            if (location) formData.append("location", location);
-            if (minSalary) formData.append("min_salary_lpa", minSalary);
-            formData.append("page", currentPage);
-            formData.append("page_size", pageSize);
+            if (region) formData.append("region", region);
 
             response = await fetch("/api/discover/search-file", {
                 method: "POST",
                 body: formData
             });
         } else {
-            // JSON PAYLOAD for standard text search
             const payload = {
                 resume_text: currentResumeText,
-                keyword: keyword,
+                query: query,
                 category: category,
-                location: location,
-                min_salary_lpa: minSalary,
-                page: currentPage,
-                page_size: pageSize
+                region: region
             };
 
             response = await fetch("/api/discover/search-text", {
@@ -182,11 +133,11 @@ async function searchJobs() {
 
         const data = await response.json();
 
-        // Update skills chips if resume was scanned
-        renderSkillsChips(data.matched_skills || []);
+        // Render detected skills from resume
+        renderSkillsChips(data.detected_skills || []);
 
-        // Update counts and cards
-        resultsCount.textContent = data.total || 0;
+        // Results count
+        resultsCount.textContent = data.count || (data.jobs ? data.jobs.length : 0);
 
         if (data.jobs && data.jobs.length > 0) {
             emptyState.classList.add("hidden");
@@ -198,7 +149,7 @@ async function searchJobs() {
 
     } catch (err) {
         console.error("Error fetching jobs:", err);
-        jobCardsGrid.innerHTML = `<div class="col-span-full text-center text-rose-400 py-8">Failed to fetch jobs. Please try again.</div>`;
+        jobCardsGrid.innerHTML = `<div class="col-span-full text-center text-rose-400 py-8">Failed to load jobs.</div>`;
     } finally {
         loadingIndicator.classList.add("hidden");
         loadingIndicator.classList.remove("flex");
@@ -223,99 +174,97 @@ function renderSkillsChips(skills) {
     `).join("");
 }
 
-// ==========================================
 // 3. JOB CARD GENERATOR
-// ==========================================
 function createJobCardHTML(job) {
-    const catStyle = categoryStyles[job.category] || categoryStyles["General Tech"];
-    
-    // Match score badge
+    const title = job.title || job.role || "Software Engineer";
+    const company = job.company || "Tech Company";
+    const category = job.company_category || job.category || "General Tech";
+    const location = job.location || "Remote";
+    const salary = job.salary || "Competitive";
+    const jobUrl = job.job_url || job.url || "#";
+    const score = job.ats_score !== undefined ? job.ats_score : job.match_score;
+
+    // ATS Match Score badge
     let matchBadgeHTML = "";
-    if (job.match_score !== undefined && job.match_score > 0) {
-        const scoreColor = job.match_score >= 70 ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" :
-                           job.match_score >= 40 ? "text-amber-400 border-amber-500/30 bg-amber-500/10" :
+    if (score !== undefined && score > 0) {
+        const scoreColor = score >= 70 ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" :
+                           score >= 40 ? "text-amber-400 border-amber-500/30 bg-amber-500/10" :
                            "text-slate-400 border-slate-700 bg-slate-800/40";
         matchBadgeHTML = `
-            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border ${scoreColor} flex items-center gap-1 shadow-sm">
-                <i class="fa-solid fa-bolt text-[10px]"></i> ${job.match_score}% ATS Match
+            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border ${scoreColor} flex items-center gap-1">
+                <i class="fa-solid fa-bolt text-[10px]"></i> ${score}% ATS Match
             </span>
         `;
     }
 
-    // Skills preview pills
-    const skills = job.matched_skills && job.matched_skills.length > 0 
+    // Skills pills
+    const skills = (job.matched_skills && job.matched_skills.length > 0) 
         ? job.matched_skills 
-        : (job.tags || []).slice(0, 4);
+        : (job.required_skills || []).slice(0, 4);
 
     const skillsHTML = skills.map(s => `
         <span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700/60">${escapeHtml(s)}</span>
     `).join("");
 
-    // Job Object for Track to Dashboard Button
-    const jobDataJSON = encodeURIComponent(JSON.stringify({
-        company: job.company,
-        role: job.role,
-        category: job.category,
-        location: job.location,
-        salary: job.salary_str,
-        portal_url: job.url
+    // Dynamic Recruiter Link
+    let recruiterUrl = `https://www.linkedin.com/search/results/people/?keywords=technical+recruiter+${encodeURIComponent(company)}`;
+    if (job.recruiter && job.recruiter.linkedin) {
+        recruiterUrl = job.recruiter.linkedin;
+    }
+
+    // JSON payload encoded safely for the Track button
+    const trackPayload = encodeURIComponent(JSON.stringify({
+        company: company,
+        role: title,
+        location: location,
+        salary: salary,
+        job_url: jobUrl
     }));
 
     return `
     <div class="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 hover:border-indigo-500/40 rounded-2xl p-5 shadow-lg flex flex-col justify-between transition-all duration-200 hover:-translate-y-1">
         <div>
-            <!-- Top Header: Category & Match Score -->
             <div class="flex items-center justify-between gap-2 mb-3">
-                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${catStyle}">
-                    ${escapeHtml(job.category || 'Tech')}
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold border bg-indigo-500/10 text-indigo-400 border-indigo-500/20">
+                    ${escapeHtml(category)}
                 </span>
                 ${matchBadgeHTML}
             </div>
 
-            <!-- Job Title & Company -->
-            <h3 class="text-base font-bold text-white leading-snug line-clamp-1">${escapeHtml(job.role)}</h3>
+            <h3 class="text-base font-bold text-white leading-snug line-clamp-1">${escapeHtml(title)}</h3>
             <div class="text-xs font-semibold text-indigo-300 mt-1 flex items-center gap-1.5">
-                <i class="fa-regular fa-building text-[11px] text-indigo-400"></i> ${escapeHtml(job.company)}
+                <i class="fa-regular fa-building text-[11px] text-indigo-400"></i> ${escapeHtml(company)}
             </div>
 
-            <!-- Details: Location & Salary -->
             <div class="flex flex-wrap items-center gap-y-1 gap-x-3 text-xs text-slate-400 mt-3 pt-3 border-t border-slate-800/60">
                 <span class="flex items-center gap-1">
-                    <i class="fa-solid fa-location-dot text-[11px] text-slate-500"></i> ${escapeHtml(job.location || 'Remote')}
+                    <i class="fa-solid fa-location-dot text-[11px] text-slate-500"></i> ${escapeHtml(location)}
                 </span>
                 <span class="flex items-center gap-1 font-medium text-emerald-400">
-                    <i class="fa-solid fa-indian-rupee-sign text-[11px]"></i> ${escapeHtml(job.salary_str || 'Competitive')}
-                </span>
-                <span class="text-[10px] text-slate-500 uppercase">
-                    ${job.source === 'arbeitnow_live' ? '⚡ Live Feed' : '⭐ Curated'}
+                    <i class="fa-solid fa-indian-rupee-sign text-[11px]"></i> ${escapeHtml(salary)}
                 </span>
             </div>
 
-            <!-- Skills Pills -->
             <div class="flex flex-wrap gap-1.5 mt-3">
                 ${skillsHTML}
             </div>
         </div>
 
-        <!-- Action Footer -->
         <div class="pt-4 mt-4 border-t border-slate-800/60 flex items-center justify-between gap-2">
-            <!-- LinkedIn Recruiter Search -->
-            <a href="${escapeHtml(job.recruiter_search_url)}" target="_blank" rel="noopener noreferrer"
+            <a href="${escapeHtml(recruiterUrl)}" target="_blank" rel="noopener noreferrer"
                class="px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-sky-400 hover:text-sky-300 border border-slate-700/60 text-xs font-medium transition-colors flex items-center gap-1.5"
-               title="Find Hiring Managers & Recruiters on LinkedIn">
+               title="Find Hiring Managers on LinkedIn">
                 <i class="fa-brands fa-linkedin"></i>
                 <span class="hidden sm:inline">Recruiter</span>
             </a>
 
             <div class="flex items-center gap-1.5">
-                <!-- Track to Dashboard Button -->
-                <button onclick="trackJobDirect('${jobDataJSON}', this)"
+                <button onclick="trackJobDirect('${trackPayload}', this)"
                         class="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 text-xs font-medium transition-all flex items-center gap-1.5">
                     <i class="fa-solid fa-plus text-[10px]"></i> Track
                 </button>
 
-                <!-- Apply Direct Link -->
-                <a href="${escapeHtml(job.url)}" target="_blank" rel="noopener noreferrer"
+                <a href="${escapeHtml(jobUrl)}" target="_blank" rel="noopener noreferrer"
                    class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors flex items-center gap-1">
                     Apply <i class="fa-solid fa-arrow-up-right-from-square text-[9px] ml-0.5"></i>
                 </a>
@@ -325,41 +274,30 @@ function createJobCardHTML(job) {
     `;
 }
 
-// ==========================================
-// 4. ONE-CLICK TRACK JOB TO DASHBOARD
-// ==========================================
-async function trackJobDirect(encodedJobData, buttonElement) {
+// 4. ONE-CLICK TRACK TO DASHBOARD
+async function trackJobDirect(encodedData, buttonElement) {
     try {
-        const job = JSON.parse(decodeURIComponent(encodedJobData));
-
-        // Get today's date formatted as YYYY-MM-DD
-        const todayStr = new Date().toISOString().split("T")[0];
+        const job = JSON.parse(decodeURIComponent(encodedData));
 
         const payload = {
             company: job.company,
             role: job.role,
-            category: job.category || "General Tech",
             location: job.location || "Remote",
             salary: job.salary || "Competitive",
             status: "Applied",
-            applied_date: todayStr, // <-- Added today's date to fix 422!
-            portal_url: job.portal_url || "",
+            job_url: job.job_url || null,
             notes: "Tracked directly from Discover Jobs engine."
         };
 
-        const response = await fetch("/api/jobs", {
+        // Notice trailing slash /api/jobs/ matching backend router!
+        const response = await fetch("/api/jobs/", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
 
-        if (!response.ok) {
-            const errData = await response.json();
-            console.error("422 Validation Error details:", errData);
-            throw new Error("Failed to save application");
-        }
+        if (!response.ok) throw new Error("Failed to save application");
 
-        // UI Feedback: Button transforms to "Tracked!"
         buttonElement.classList.remove("bg-indigo-600/20", "text-indigo-300");
         buttonElement.classList.add("bg-emerald-500/20", "text-emerald-300", "border-emerald-500/40");
         buttonElement.innerHTML = `<i class="fa-solid fa-check text-[10px]"></i> Tracked!`;
@@ -367,13 +305,11 @@ async function trackJobDirect(encodedJobData, buttonElement) {
 
     } catch (err) {
         console.error("Error tracking job:", err);
-        alert("Could not track job. Check browser console for details.");
+        alert("Could not track job. Check if the server is running.");
     }
 }
 
-// ==========================================
 // 5. TOP 200 COMPANIES DIRECTORY MODAL
-// ==========================================
 function initTopCompaniesModal() {
     const modal = document.getElementById("companiesModal");
     const openBtn = document.getElementById("openCompaniesModalBtn");
@@ -387,16 +323,12 @@ function initTopCompaniesModal() {
         loadModalCompanies("");
     });
 
-    closeBtn.addEventListener("click", () => {
-        modal.classList.add("hidden");
-    });
+    closeBtn.addEventListener("click", () => modal.classList.add("hidden"));
 
-    // Close on outside backdrop click
     modal.addEventListener("click", (e) => {
         if (e.target === modal) modal.classList.add("hidden");
     });
 
-    // Category filter pills inside modal
     pills.forEach(pill => {
         pill.addEventListener("click", () => {
             pills.forEach(p => {
@@ -406,8 +338,7 @@ function initTopCompaniesModal() {
             pill.classList.add("bg-indigo-600", "text-white");
             pill.classList.remove("bg-slate-800", "text-slate-400");
 
-            const selectedCat = pill.getAttribute("data-cat");
-            loadModalCompanies(selectedCat);
+            loadModalCompanies(pill.getAttribute("data-cat"));
         });
     });
 }
@@ -422,33 +353,35 @@ async function loadModalCompanies(category) {
         if (!res.ok) throw new Error("Failed to load companies");
 
         const data = await res.json();
-        // Safe extraction whether backend returns {companies: [...]} or directly [...]
-        const companies = (data && data.companies) ? data.companies : (Array.isArray(data) ? data : []);
+        const companies = data.companies || [];
 
         if (companies.length === 0) {
-            container.innerHTML = `<div class="col-span-full text-center text-slate-500 py-6">No companies found in this category.</div>`;
+            container.innerHTML = `<div class="col-span-full text-center text-slate-500 py-6">No companies found.</div>`;
             return;
         }
 
-        container.innerHTML = companies.map(comp => `
+        container.innerHTML = companies.map(comp => {
+            const recruiterUrl = `https://www.linkedin.com/search/results/people/?keywords=technical+recruiter+${encodeURIComponent(comp.name)}`;
+            return `
             <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 flex items-center justify-between hover:border-slate-700 transition-colors">
                 <div>
                     <h4 class="text-sm font-bold text-white">${escapeHtml(comp.name)}</h4>
-                    <span class="inline-block mt-0.5 text-[10px] font-medium text-indigo-400">${escapeHtml(comp.category)}</span>
+                    <span class="inline-block mt-0.5 text-[10px] font-medium text-indigo-400">${escapeHtml(comp.category || 'Tech')}</span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <a href="${escapeHtml(comp.recruiter_search_url)}" target="_blank" rel="noopener noreferrer"
+                    <a href="${escapeHtml(recruiterUrl)}" target="_blank" rel="noopener noreferrer"
                        class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-400 text-xs font-medium flex items-center gap-1 transition-colors"
                        title="Search Recruiters on LinkedIn">
                         <i class="fa-brands fa-linkedin text-sm"></i>
                     </a>
-                    <a href="${escapeHtml(comp.careers_url)}" target="_blank" rel="noopener noreferrer"
+                    <a href="${escapeHtml(comp.career_url || comp.careers_url || '#')}" target="_blank" rel="noopener noreferrer"
                        class="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 text-xs font-medium flex items-center gap-1 transition-all">
                         Careers <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
                     </a>
                 </div>
             </div>
-        `).join("");
+            `;
+        }).join("");
 
     } catch (err) {
         console.error("Error loading top companies:", err);
@@ -456,7 +389,6 @@ async function loadModalCompanies(category) {
     }
 }
 
-// Helper utility to prevent XSS
 function escapeHtml(str) {
     if (!str) return "";
     return String(str)
