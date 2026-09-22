@@ -1,29 +1,45 @@
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
+from app.database import engine
+from app import models
+from app.routers import jobs, discover
 
-from app.database import engine, Base
-from app.routers import jobs
+# Initialize Database Tables
+models.Base.metadata.create_all(bind=engine)
 
-# 1. Automatically create database tables in SQLite on startup
-Base.metadata.create_all(bind = engine)
+app = FastAPI(
+    title="CareerPulse API",
+    description="Smart Job Application Tracker, ATS Engine & Live Job Discoverer",
+    version="1.0.0"
+)
 
-# 2. Initialize the FastAPI app with title and metadata
-app = FastAPI(title = "CareerPlus", description = "Job Application Tracker, Aggregator & ATS Keyword Matcher", version = "1.0.0")
-
-# 3. Mount the static folder (makes /static/js/app.js accessible to the browser)
+# Mount Static Files (CSS, JS, Icons)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# 4. Tell Jinja2 where our HTML templates live
+# Templates Configuration
 templates = Jinja2Templates(directory="app/templates")
 
-# 5. Mount our Jobs CRUD router
+# Register Backend Routers
 app.include_router(jobs.router)
+app.include_router(discover.router)
 
-# 6. Root health-check endpoint
-@app.get("/")
-def home_page(request: Request):
-    return templates.TemplateResponse(request=request, name="index.html")
-    # return templates.TemplateResponse("index.html", {"request": request})
-# def root():
-#     return {"message": "CareerPluse API is up and running!  Visit /docs for interactive testing."}
+# Frontend Page Routes
+@app.get("/", response_class=HTMLResponse)
+def read_root(request: Request):
+    """Renders the Application Tracker Dashboard."""
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={"active_page": "dashboard"}
+    )
+
+@app.get("/discover", response_class=HTMLResponse)
+def read_discover(request: Request):
+    """Renders the Live Job Discovery & Resume Matcher Page."""
+    return templates.TemplateResponse(
+        request=request,
+        name="discover.html",
+        context={"active_page": "discover"}
+    )
