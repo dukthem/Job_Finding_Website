@@ -5,6 +5,15 @@
 let currentResumeFile = null;
 let currentResumeText = "";
 
+const categoryDisplayMap = {
+    "big_tech": "Big Tech",
+    "product_saas": "Product SaaS & AI",
+    "fintech": "Fintech",
+    "european_tech": "European Tech",
+    "indian_unicorns": "Indian Unicorns",
+    "it_services": "IT Services"
+};
+
 // DOM Initialization
 document.addEventListener("DOMContentLoaded", () => {
     initDropzone();
@@ -178,7 +187,8 @@ function renderSkillsChips(skills) {
 function createJobCardHTML(job) {
     const title = job.title || job.role || "Software Engineer";
     const company = job.company || "Tech Company";
-    const category = job.company_category || job.category || "General Tech";
+    const rawCat = job.company_category || job.category || "General Tech";
+    const category = categoryDisplayMap[rawCat] || rawCat;
     const location = job.location || "Remote";
     const salary = job.salary || "Competitive";
     const jobUrl = job.job_url || job.url || "#";
@@ -208,8 +218,8 @@ function createJobCardHTML(job) {
 
     // Dynamic Recruiter Link
     let recruiterUrl = `https://www.linkedin.com/search/results/people/?keywords=technical+recruiter+${encodeURIComponent(company)}`;
-    if (job.recruiter && job.recruiter.linkedin) {
-        recruiterUrl = job.recruiter.linkedin;
+    if (job.recruiter) {
+        recruiterUrl = job.recruiter.linkedin_url || job.recruiter.linkedin || recruiterUrl;
     }
 
     // JSON payload encoded safely for the Track button

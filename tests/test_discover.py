@@ -40,7 +40,7 @@ def test_search_jobs_with_category_filter():
     assert "jobs" in data
     # Any returned job must belong to Big Tech
     for job in data["jobs"]:
-        assert job.get("company_category") == "Big Tech"
+        assert job.get("company_category") in ["Big Tech", "big_tech"]
 
 
 # ====================================================================
@@ -121,4 +121,4 @@ def test_get_top_companies_by_category():
     assert "companies" in data
     
     for comp in data["companies"]:
-        assert comp["category"].lower() == "fintech"
+        assert "fintech" in comp["category"].lower()

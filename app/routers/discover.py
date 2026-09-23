@@ -8,6 +8,19 @@ from app.services.job_fetcher import fetch_live_jobs, rank_jobs_by_resume
 
 router = APIRouter(prefix="/api/discover", tags=["Discover & ATS"])
 
+def normalize_category(cat: Optional[str]) -> str:
+    """Normalizes category strings so dropdown values match backend keys seamlessly."""
+    if not cat or cat.lower() in ["all", ""]:
+        return "all"
+    c = cat.lower().strip()
+    if "big" in c: return "big_tech"
+    if "saas" in c or "product" in c or "ai" in c: return "product_saas"
+    if "fintech" in c: return "fintech"
+    if "euro" in c: return "european_tech"
+    if "unicorn" in c or "india" in c: return "indian_unicorns"
+    if "service" in c or "it" in c: return "it_services"
+    return c
+
 class SearchTextRequest(BaseModel):
     resume_text: Optional[str] = ""
     query: Optional[str] = ""
@@ -20,9 +33,11 @@ class SearchTextRequest(BaseModel):
 @router.post("/search-text")
 def search_jobs_by_text(req: SearchTextRequest):
     """Pulls matching live jobs and ranks them by ATS score."""
+    norm_cat = normalize_category(req.category)
+    
     matching_jobs = fetch_live_jobs(
         query=req.query,
-        category=req.category,
+        category=norm_cat,
         company_type=req.company_type,
         job_type=req.job_type,
         region=req.region,
@@ -73,9 +88,11 @@ async def search_jobs_by_file(
             detail="Could not extract text. Please ensure document is not empty or password protected."
         )
 
+    norm_cat = normalize_category(category)
+
     matching_jobs = fetch_live_jobs(
         query=query,
-        category=category,
+        category=norm_cat,
         company_type=company_type,
         job_type=job_type,
         region=region,
@@ -102,5 +119,6 @@ def get_top_companies(category: Optional[str] = None):
     """Returns the top tech companies directory for the modal."""
     companies = TOP_200_COMPANIES
     if category and category.lower() != "all":
-        companies = [c for c in companies if c.get("category", "").lower() == category.lower()]
+        norm_filter = category.lower().strip()
+        companies = [c for c in companies if norm_filter in c.get("category", "").lower()]
     return {"companies": companies}
